@@ -1,3 +1,4 @@
+from Dataloader import Dataloader
 from swarm import Swarm
 from fs_problem import FsProblem
 import pandas as pd
@@ -15,7 +16,18 @@ class FSData():
         self.clinical_variable_location = location + "_clinical_variable.csv"
         self.nb_exec = nbr_exec
         self.dataset_name = re.search('[A-Za-z\-]*.csv',self.location)[0].split('.')[0]
-        self.df = pd.read_csv(self.location,header=None)
+        self.dl=Dataloader()
+        gene=self.dl.get_k_gene(30)
+        survival_time=self.dl.get_survival_time()
+        event=self.dl.get_event()
+        treatment=self.dl.get_treatment()
+        df=pd.concat((gene,survival_time,event,treatment),axis=1)
+        print(df.columns)
+        df=df.loc[df['event']==1 ]
+        df=df.loc[df['Treatment']==1]
+        df.drop(columns=['Treatment','event'],inplace=True)
+        self.df=df
+        
         self.clinical_variable=pd.read_csv(self.clinical_variable_location,header=None)
         self.ql = QLearning(len(self.df.columns),Solution.attributs_to_flip(len(self.df.columns)-1),alpha,gamma,epsilon)
         self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql)
