@@ -173,7 +173,8 @@ class Swarm :
         if (typeOfAlgo == 1):
           print("Return (Q-value) : ",self.bestSolution.rl_return)  
           #print("Total sorting time : {0:.2f} s".format(Solution.sorting_time))
-        return self.bestSolution.fitness*100, Solution.nbrUn(self.bestSolution.solution.get_state())
+        return (self.bestSolution.fitness*100, Solution.nbrUn(self.bestSolution.solution.get_state())), \
+               self.bestSolution.solution.get_state()
       
       
     def count_features(self,solution):
