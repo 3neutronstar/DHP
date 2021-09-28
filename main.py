@@ -16,6 +16,9 @@ if __name__=="__main__":
     maxIterations = 10
     locIterations = 10
 
+    #gene feature selection
+    num_k_gene=30
+
     # Test type
 
     typeOfAlgo = 1
@@ -28,6 +31,5 @@ if __name__=="__main__":
     param = "gamma"
     val = str(locals()[param])
     classifier = "knn"
-
-    instance = FSData(typeOfAlgo,location,nbr_exec,method,test_param,param,val,classifier,alhpa,gamma,epsilon)
+    instance = FSData(typeOfAlgo,location,nbr_exec,method,test_param,param,val,classifier,alhpa,gamma,epsilon,num_k_gene)
     instance.run(flip,max_chance,bees_number,maxIterations,locIterations)

@@ -9,7 +9,7 @@ import xlsxwriter
 
 class FSData():
 
-    def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val, classifier, alpha=None,gamma=None,epsilon=None):
+    def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val, classifier, alpha=None,gamma=None,epsilon=None,num_k_gene=30):
 
         self.typeOfAlgo = typeOfAlgo
         self.location = location + ".csv"
@@ -17,7 +17,7 @@ class FSData():
         self.nb_exec = nbr_exec
         self.dataset_name = re.search('[A-Za-z\-]*.csv',self.location)[0].split('.')[0]
         self.dl=Dataloader()
-        gene=self.dl.get_k_gene(30)
+        gene=self.dl.get_k_gene(num_k_gene)
         survival_time=self.dl.get_survival_time()
         event=self.dl.get_event()
         treatment=self.dl.get_treatment()
