@@ -9,6 +9,7 @@ from solution import Solution
 from sklearn.linear_model import LinearRegression
 import numpy as np
 import shap
+import xgboost
 
 
 class FsProblem:

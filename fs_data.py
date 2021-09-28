@@ -32,7 +32,7 @@ class FSData():
         self.ql = QLearning(len(self.df.columns),Solution.attributs_to_flip(len(self.df.columns)-1),alpha,gamma,epsilon)
         self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql)
         
-        self.classifier_name = str(type(self.fsd.classifier)).strip('< > \' class ').split('.')[3]
+        self.classifier_name = str(type(self.fsd.classifier)).strip('< > \' class ').split('.')[-1]
         path = './results/parameters/'+method+'/'+test_param+'/'+param+'/'+val+'/'+classifier+'/'+ self.dataset_name
         if not os.path.exists(path):
           os.makedirs(path + '/logs/')
