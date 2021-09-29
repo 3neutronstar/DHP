@@ -5,12 +5,13 @@ from sklearn.model_selection import train_test_split, cross_val_score, KFold, St
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
+from xgboost.sklearn import XGBRegressor
 from solution import Solution
 from sklearn.linear_model import LinearRegression
 import numpy as np
 import shap
 import xgboost
-
+import matplotlib.pyplot as plt
 
 class FsProblem:
     def __init__(self, typeOfAlgo, data, clinical_data, qlearn, classifier=KNeighborsClassifier(n_neighbors=1)):
@@ -21,7 +22,10 @@ class FsProblem:
                        self.nb_attribs]  # We initilize the labels from the last column of the dataset # 마지막 column이 정답
         self.ql = qlearn
         # self.classifier = classifier # classifier 대신에 xgboost같은거 넣으면 됨
-        self.classifier = LinearRegression()
+        if classifier=='linear':
+            self.classifier = LinearRegression()
+        elif classifier=='xgb':
+            self.classifier = xgboost.XGBRegressor(n_estimators=100, learning_rate=0.08, gamma=0, subsample=0.75, colsample_bytree=1, max_depth=9)
         self.typeOfAlgo = typeOfAlgo
         self.clinical_variable_data = clinical_data.values
         self.test_size = 0.1
@@ -95,14 +99,28 @@ class FsProblem:
         :return: 없음.
         '''
         # 그래프 초기화
-        shap.initjs()
+        if isinstance(self.classifier,LinearRegression):
+            shap.initjs()
 
-        ex = shap.KernelExplainer(self.classifier.predict, train_x)
+            ex = shap.KernelExplainer(self.classifier.predict, train_x)
 
-        # 첫번째 test dataset 하나에 대해서 shap value를 적용하여 시각화
-        shap_values = ex.shap_values(test_x[0, :])
-        shap.force_plot(ex.expected_value, shap_values, test_x[0, :])
+            # 첫번째 test dataset 하나에 대해서 shap value를 적용하여 시각화
+            shap_values = ex.shap_values(test_x[0, :])
+            shap.force_plot(ex.expected_value, shap_values, test_x[0, :])
 
-        # 전체 검증 데이터 셋에 대해서 적용
-        shap_values = ex.shap_values(test_x)
-        shap.summary_plot(shap_values, test_x)
+            # 전체 검증 데이터 셋에 대해서 적용
+            shap_values = ex.shap_values(test_x)
+            shap.summary_plot(shap_values, test_x)
+            plt.savefig('./linear_regression_result.jpg')
+        elif isinstance(self.classifier,XGBRegressor):
+            self.classifier.plot_importance()
+            plt.savefig('./xgboost_importance_result.jpg')
+            plt.close()
+
+            explainer = shap.Explainer(self.classifier)
+            shap_values = explainer(test_x[0,:])
+
+            # visualize the first prediction's explanation
+            shap.plots.waterfall(shap_values[0])
+            plt.savefig('./xgboost_waterfall_result.jpg')
+
