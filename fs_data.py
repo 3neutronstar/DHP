@@ -27,11 +27,11 @@ class FSData():
         df=df.loc[df['Treatment']==1]
         df.drop(columns=['Treatment','event'],inplace=True)
         self.df=df
+        self.classifier=classifier
         
         self.clinical_variable=pd.read_csv(self.clinical_variable_location,header=None)
         self.ql = QLearning(len(self.df.columns),Solution.attributs_to_flip(len(self.df.columns)-1),alpha,gamma,epsilon)
-        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql)
-        
+        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=classifier)
         self.classifier_name = str(type(self.fsd.classifier)).strip('< > \' class ').split('.')[-1]
         path = './results/parameters/'+method+'/'+test_param+'/'+param+'/'+val+'/'+classifier+'/'+ self.dataset_name
         if not os.path.exists(path):
@@ -69,7 +69,7 @@ class FSData():
         
         for itr in range(1,self.nb_exec+1):
           print ("Execution {0}".format(str(itr)))
-          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql)
+          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=self.classifier)
           swarm = Swarm(self.fsd,flip,max_chance,bees_number,maxIterations,locIterations)
           t1 = time.time()
           best, best_solution = swarm.bso(self.typeOfAlgo,flip)

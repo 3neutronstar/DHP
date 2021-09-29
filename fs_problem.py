@@ -26,6 +26,8 @@ class FsProblem:
             self.classifier = LinearRegression()
         elif classifier=='xgb':
             self.classifier = xgboost.XGBRegressor(n_estimators=100, learning_rate=0.08, gamma=0, subsample=0.75, colsample_bytree=1, max_depth=9)
+        else:
+            raise NotImplementedError
         self.typeOfAlgo = typeOfAlgo
         self.clinical_variable_data = clinical_data.values
         self.test_size = 0.1
