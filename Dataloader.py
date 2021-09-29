@@ -12,7 +12,7 @@ class Dataloader(object):
         data = {}
 
         csv_name = {
-            "clinic": "clinical_variables.csv",
+            "clinic": "Clinical_Variables.csv",
             "gene": "Genetic_alterations.csv",
             "treatment": "Treatment.csv",
             "survival": "Survival_time_event.csv",

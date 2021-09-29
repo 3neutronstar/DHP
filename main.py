@@ -1,6 +1,11 @@
 from fs_data import FSData
-
+import numpy as np
+import random
 if __name__=="__main__":
+    # fix random seed
+    seed=1
+    np.random.seed(seed)
+    random.seed(seed)
 
     # RL 
 
@@ -17,7 +22,7 @@ if __name__=="__main__":
     locIterations = 10
 
     #gene feature selection
-    num_k_gene=30
+    num_k_gene=60
 
     # Test type
 

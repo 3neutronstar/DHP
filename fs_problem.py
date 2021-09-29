@@ -10,7 +10,7 @@ from sklearn.linear_model import LinearRegression
 import numpy as np
 import shap
 import xgboost
-
+import matplotlib.pyplot as plt
 
 class FsProblem:
     def __init__(self, typeOfAlgo, data, clinical_data, qlearn, classifier=KNeighborsClassifier(n_neighbors=1)):
@@ -96,7 +96,6 @@ class FsProblem:
         '''
         # 그래프 초기화
         shap.initjs()
-
         ex = shap.KernelExplainer(self.classifier.predict, train_x)
 
         # 첫번째 test dataset 하나에 대해서 shap value를 적용하여 시각화
@@ -106,3 +105,7 @@ class FsProblem:
         # 전체 검증 데이터 셋에 대해서 적용
         shap_values = ex.shap_values(test_x)
         shap.summary_plot(shap_values, test_x)
+
+
+        plt.savefig('./result.jpg')
+
