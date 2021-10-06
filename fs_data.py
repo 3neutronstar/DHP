@@ -9,7 +9,7 @@ import xlsxwriter
 
 class FSData():
 
-    def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val, classifier, alpha=None,gamma=None,epsilon=None,num_k_gene=30):
+    def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val, alpha=None,gamma=None,epsilon=None, config=None):
 
         self.typeOfAlgo = typeOfAlgo
         self.location = location + ".csv"
@@ -17,30 +17,42 @@ class FSData():
         self.nb_exec = nbr_exec
         self.dataset_name = re.search('[A-Za-z\-]*.csv',self.location)[0].split('.')[0]
         self.dl=Dataloader()
-        gene=self.dl.get_k_gene(num_k_gene)
+
+
+        gene=self.dl.get_k_gene(config['gene_num_train'])
         survival_time=self.dl.get_survival_time()
         event=self.dl.get_event()
         treatment=self.dl.get_treatment()
-        df=pd.concat((gene,survival_time,event,treatment),axis=1)
-        print(df.columns)
-        df=df.loc[df['event']==1 ]
-        df=df.loc[df['Treatment']==1]
-        df.drop(columns=['Treatment','event'],inplace=True)
-        self.df=df
-        self.classifier=classifier
-        
-        self.clinical_variable=pd.read_csv(self.clinical_variable_location,header=None)
+        clinic = self.dl.get_clinic()
+
+        df=pd.concat((gene,survival_time,event,treatment,clinic),axis=1)
+        df = df.dropna()
+        df = df.loc[df['event']==1]
+        df = df.loc[df['Treatment']==config['treatment']]
+        self.clinical_variable = df.loc[:, 'Var1':]  # pd.read_csv(self.clinical_variable_location,header=None)
+        df.drop(columns=['Treatment','event'], inplace=True)
+        df.drop(columns=['Var1','Var2','Var3','Var4','Var5','Var6','Var7','Var8','Var9','Var10'], inplace=True)
+        self.df = df
+
+        path = os.path.join('results', 'parameters', method, test_param, param, val, config['classifier'],
+                            self.dataset_name, 'treatment' if config['treatment'] == 1 else 'non_treatment',
+                            'data_num_'+str(config['gene_num_train']))
+        log_dir = os.path.join(path, 'logs')
+        sheet_dir = os.path.join(path, 'sheets')
+
+        os.makedirs(log_dir, exist_ok=True)
+        os.makedirs(sheet_dir, exist_ok=True)
+
+        self.log_dir = log_dir
         self.ql = QLearning(len(self.df.columns),Solution.attributs_to_flip(len(self.df.columns)-1),alpha,gamma,epsilon)
-        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=classifier)
-        self.classifier_name = str(type(self.fsd.classifier)).strip('< > \' class ').split('.')[-1]
-        path = './results/parameters/'+method+'/'+test_param+'/'+param+'/'+val+'/'+classifier+'/'+ self.dataset_name
-        if not os.path.exists(path):
-          os.makedirs(path + '/logs/')
-          os.makedirs(path + '/sheets/')
-        self.instance_name = self.dataset_name + '_' +  str(time.strftime("%m-%d-%Y_%H-%M-%S_", time.localtime()) + self.classifier_name)
-        log_filename = str(path + '/logs/'+ self.instance_name)
-        if not os.path.exists(path):
-          os.makedirs(path)
+        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql, config['classifier'], self.log_dir)
+
+        self.classifier_name = config['classifier']
+
+
+        self.instance_name = self.dataset_name + '_' + str(time.strftime("%m-%d-%Y_%H-%M-%S_", time.localtime()) + self.classifier_name)
+        log_filename = os.path.join(log_dir, self.instance_name)
+
         log_file = open(log_filename + '.txt','w+')
         # sys.stdout = log_file
         
@@ -52,8 +64,7 @@ class FSData():
         #os.exec('cat /proc/cpuinfo') # Think of changing this when switching between Windows & Linux
         print("[END] Ressources specifications\n")
 
-        
-        sheet_filename = str(path + '/sheets/'+ self.instance_name )
+        sheet_filename = os.path.join(path, 'sheets', self.instance_name)
         self.workbook = xlsxwriter.Workbook(sheet_filename + '.xlsx')
         
         self.worksheet = self.workbook.add_worksheet(self.classifier_name)
@@ -69,7 +80,7 @@ class FSData():
         
         for itr in range(1,self.nb_exec+1):
           print ("Execution {0}".format(str(itr)))
-          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=self.classifier)
+          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql, self.classifier_name, self.log_dir)
           swarm = Swarm(self.fsd,flip,max_chance,bees_number,maxIterations,locIterations)
           t1 = time.time()
           best, best_solution = swarm.bso(self.typeOfAlgo,flip)
