@@ -3,32 +3,38 @@ from pandas.core.frame import DataFrame
 from sklearn import metrics
 from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold, ShuffleSplit, GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
-from lightgbm import LGBMClassifier
+from lightgbm import LGBMRegressor
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from solution import Solution
 from sklearn.linear_model import LinearRegression, LogisticRegression
 import numpy as np
 import shap
+import pickle
 import xgboost
+import joblib
+import os
+import matplotlib.pyplot as plt
 
 
 class FsProblem:
-    def __init__(self, typeOfAlgo, data, clinical_data, qlearn, classifier=KNeighborsClassifier(n_neighbors=1)):
+    def __init__(self, typeOfAlgo, data, clinical_data, qlearn, classifier, log_dir):
         self.data = data
         self.nb_attribs = len(
             self.data.columns) - 1  # The number of features is the size of the dataset - the 1 column of labels
         self.outPuts = self.data.iloc[:,
                        self.nb_attribs]  # We initilize the labels from the last column of the dataset # 마지막 column이 정답
         self.ql = qlearn
+        self.cv_n_split = 10
         # self.classifier = classifier # classifier 대신에 xgboost같은거 넣으면 됨
-        self.classifier = None # LinearRegression()
+        self.classifier_name = classifier
+        self.classifier = self._set_model(self.classifier_name) # LinearRegression()
         self.typeOfAlgo = typeOfAlgo
         self.clinical_variable_data = clinical_data.values
         self.test_size = 0.1
-        self.cv_n_split = 10
+        self.log_dir = log_dir
 
-    def _prepare_data(self, solution, cross_validation_flag=False, train=False):
+    def _prepare_data(self, solution, cross_validation_flag=False, clinic_var=False):
         '''
         현재 state의 solution 상태를 보고 적절한 데이터 구조로 x, y 데이터와 구체적인 split 정보를 반환해준다.
         cross_validation_flag가 True면 split_info는 cross validation policy 반환.
@@ -47,8 +53,8 @@ class FsProblem:
         df = self.data.iloc[:, sol_list]
         array = df.values
 
-        gene_x = array[:, 0:self.nb_attribs]  # clinical variable 추가 위치
-        if train:
+        gene_x = array[:, 0:self.nb_attribs] # clinical variable 추가 위치
+        if clinic_var:
             total_x = np.concatenate((gene_x, self.clinical_variable_data), axis=1)
         else:
             total_x = gene_x
@@ -63,28 +69,24 @@ class FsProblem:
         return total_x, total_y, split_info
 
     def evaluate(self, solution, train=True):
-        total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=train, train=train)
+        total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_var=train)
 
-        self.classifier = self._set_model(type='lightgbm')
+        self.classifier = self._set_model(type=self.classifier_name)
 
         if total_x is None:
             return 0
 
-        if train:
-            cv = split_info
-            results = -1.0 / cross_val_score(self.classifier, total_x, total_y,
-                                             cv=cv, scoring='neg_mean_squared_error')
-            reward = results.mean()
-        else:
-            train_x, test_x, train_y, test_y = split_info
+        train_x, test_x, train_y, test_y = split_info
 
-            self.classifier.fit(train_x, train_y)
-            predict = self.classifier.predict(test_x)
+        self.classifier.fit(train_x, train_y)
+        predict = self.classifier.predict(test_x)
 
-            # metrics.accuracy_score(predict,test_y)
-            reward = 1.0 / metrics.mean_squared_error(test_y, predict)
+        # metrics.accuracy_score(predict,test_y)
+        reward = 1.0 / metrics.mean_squared_error(test_y, predict)
 
+        if not train:
             self.get_shap_value(train_x, test_x)
+            self._save_model()
 
         return reward
 
@@ -108,30 +110,34 @@ class FsProblem:
 
         # 전체 검증 데이터 셋에 대해서 적용
         shap_values = ex.shap_values(test_x)
-        shap.summary_plot(shap_values, test_x)
+        shap.summary_plot(shap_values, test_x, show=False)
+
+        plt.savefig(os.path.join(self.log_dir, 'shap.png'))
 
     def _set_model(self, type):
         if type == 'logistic_regression':
+            model = LogisticRegression()
             params = {
                 'penalty': ['none', 'l1', 'elasticnet'],
                 'solver': ['lbfgs', 'saga'],
                 'l1_ratio': [0.5],
-                'max_iter': 1000
+                'max_iter': [1000]
             }
-        elif type == 'linear_regression':
-            params = None
-        elif type == 'lightgbm':
-            model = LGBMClassifier()
-            params = {
-                'n_estimators': [400, 700, 1000],
-                'colsample_bytree': [0.7, 0.8],
-                'max_depth': [15, 20, 25],
-                'num_leaves': [50, 100, 200],
-                'reg_alpha': [1.1, 1.2, 1.3],
-                'reg_lambda': [1.1, 1.2, 1.3],
-                'min_split_gain': [0.3, 0.4],
-                'subsample': [0.7, 0.8, 0.9],
-                'subsample_freq': [20]
-            }
+            return GridSearchCV(model, param_grid=params, cv=self.cv_n_split)
 
-        self.classifier = GridSearchCV(model, param_grid=params, cv=self.cv_n_split)
+        elif type == 'linear_regression':
+            return LinearRegression()
+        elif type == 'lightgbm':
+            model = LGBMRegressor()
+
+            params = {
+                'n_estimators': [50, 100, 200, 500],
+                'max_depth': [-1, 3, 5, 7, 15],
+                'num_leaves': [7, 14, 21, 28, 31, 50],
+                'learning_rate': [0.1, 0.03, 0.003],
+            }
+            return GridSearchCV(model, param_grid=params, cv=self.cv_n_split)
+
+    def _save_model(self):
+        joblib.dump(self.classifier, os.path.join(self.log_dir, 'model.pkl'))
+
