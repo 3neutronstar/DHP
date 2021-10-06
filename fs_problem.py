@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 from pandas.core.frame import DataFrame
 from sklearn import metrics
-from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold, ShuffleSplit
+from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold, ShuffleSplit, GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
+from lightgbm import LGBMClassifier
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler
 from solution import Solution
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
 import numpy as np
 import shap
 import xgboost
@@ -21,7 +22,7 @@ class FsProblem:
                        self.nb_attribs]  # We initilize the labels from the last column of the dataset # 마지막 column이 정답
         self.ql = qlearn
         # self.classifier = classifier # classifier 대신에 xgboost같은거 넣으면 됨
-        self.classifier = LinearRegression()
+        self.classifier = None # LinearRegression()
         self.typeOfAlgo = typeOfAlgo
         self.clinical_variable_data = clinical_data.values
         self.test_size = 0.1
@@ -63,6 +64,8 @@ class FsProblem:
 
     def evaluate(self, solution, train=True):
         total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=train, train=train)
+
+        self.classifier = self._set_model(type='lightgbm')
 
         if total_x is None:
             return 0
@@ -106,3 +109,29 @@ class FsProblem:
         # 전체 검증 데이터 셋에 대해서 적용
         shap_values = ex.shap_values(test_x)
         shap.summary_plot(shap_values, test_x)
+
+    def _set_model(self, type):
+        if type == 'logistic_regression':
+            params = {
+                'penalty': ['none', 'l1', 'elasticnet'],
+                'solver': ['lbfgs', 'saga'],
+                'l1_ratio': [0.5],
+                'max_iter': 1000
+            }
+        elif type == 'linear_regression':
+            params = None
+        elif type == 'lightgbm':
+            model = LGBMClassifier()
+            params = {
+                'n_estimators': [400, 700, 1000],
+                'colsample_bytree': [0.7, 0.8],
+                'max_depth': [15, 20, 25],
+                'num_leaves': [50, 100, 200],
+                'reg_alpha': [1.1, 1.2, 1.3],
+                'reg_lambda': [1.1, 1.2, 1.3],
+                'min_split_gain': [0.3, 0.4],
+                'subsample': [0.7, 0.8, 0.9],
+                'subsample_freq': [20]
+            }
+
+        self.classifier = GridSearchCV(model, param_grid=params, cv=self.cv_n_split)
