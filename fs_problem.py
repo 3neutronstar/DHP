@@ -136,7 +136,7 @@ class FsProblem:
 
             # 전체 검증 데이터 셋에 대해서 적용
             shap_values = ex.shap_values(test_x)
-            shap.summary_plot(shap_values, test_x)
+            shap.summary_plot(shap_values, test_x,max_display=100)
             plt.savefig('./linear_regression_result.jpg')
 
             #explainer = shap.Explainer(self.classifier)
