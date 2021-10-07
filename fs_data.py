@@ -9,7 +9,8 @@ import xlsxwriter
 
 class FSData():
 
-    def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val, classifier, alpha=None,gamma=None,epsilon=None,num_k_gene=30):
+    def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val, classifier,
+                 alpha=None,gamma=None,epsilon=None,num_k_gene=30, config=None):
 
         self.typeOfAlgo = typeOfAlgo
         self.location = location + ".csv"
@@ -21,18 +22,22 @@ class FSData():
         survival_time=self.dl.get_survival_time()
         event=self.dl.get_event()
         treatment=self.dl.get_treatment()
-        df=pd.concat((gene,survival_time,event,treatment),axis=1)
+        clinic_var=self.dl.get_clinic_var()
+
+        df=pd.concat((gene,survival_time,event,treatment, clinic_var),axis=1)
         print(df.columns)
-        df=df.loc[df['event']==1 ]
-        df=df.loc[df['Treatment']==1]
+        df=df.loc[df['event']==1]
+        df=df.loc[df['Treatment']==config['treatment']]
+        self.clinical_variable = df.loc[:, 'Var1':]
         df.drop(columns=['Treatment','event'],inplace=True)
+        df.drop(columns=['Var'+str(col) for col in range(1, 10)], inplace=True)
         self.df=df
         self.classifier=classifier
-        
-        self.clinical_variable=pd.read_csv(self.clinical_variable_location,header=None)
+
         self.ql = QLearning(len(self.df.columns),Solution.attributs_to_flip(len(self.df.columns)-1),alpha,gamma,epsilon)
         self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=classifier)
         self.classifier_name = str(type(self.fsd.classifier)).strip('< > \' class ').split('.')[-1]
+
         path = './results/parameters/'+method+'/'+test_param+'/'+param+'/'+val+'/'+classifier+'/'+ self.dataset_name
         if not os.path.exists(path):
           os.makedirs(path + '/logs/')

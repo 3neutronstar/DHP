@@ -45,6 +45,10 @@ class Dataloader(object):
     def get_survival_time(self):
         return self.data['survival']['time']
 
+    def get_clinic_var(self):
+        return self.data['clinic']
+
+
 if __name__ == '__main__':
     dl = Dataloader()
     print(dl.get_k_gene(300))
