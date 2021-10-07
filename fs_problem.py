@@ -6,23 +6,28 @@ from solution import Solution
 from sklearn.linear_model import LinearRegression
 import numpy as np
 import shap
+import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from model import Model
 from torch.utils.data import DataLoader, TensorDataset
+from lifelines import CoxPHFitter
+from lifelines.utils import k_fold_cross_validation
 
 from utils import AverageMeter, ProgressMeter
 
 class FsProblem:
-    def __init__(self, typeOfAlgo, data, clinical_data, qlearn, classifier=KNeighborsClassifier(n_neighbors=1)):
+    def __init__(self, typeOfAlgo, data, clinical_data, qlearn,
+                 classifier=KNeighborsClassifier(n_neighbors=1), reward_df=None,config=None):
         self.data = data
         self.nb_attribs = len(
             self.data.columns) - 1  # The number of features is the size of the dataset - the 1 column of labels
         self.outPuts = self.data.loc[:,
                        'time']  # We initilize the labels from the last column of the dataset # 마지막 column이 정답
         self.ql = qlearn
+        print(data)
         # self.classifier = classifier # classifier 대신에 xgboost같은거 넣으면 됨
         self.classifier_name = classifier
 
@@ -30,12 +35,16 @@ class FsProblem:
             self.classifier = LinearRegression()
         elif self.classifier_name == 'deep':
             self.classifier = None
+        elif self.classifier_name == 'cox':
+            self.classifier = None
         else:
             raise NotImplementedError
         self.typeOfAlgo = typeOfAlgo
         self.clinical_variable_data = clinical_data.values
         self.test_size = 0.1
         self.cv_n_split = 5
+        self.reward_df = reward_df
+        self.config=config
 
     def _prepare_data(self, solution, cross_validation_flag=False, clinic_include=False):
         '''
@@ -73,7 +82,7 @@ class FsProblem:
 
         return total_x, total_y, split_info
 
-    def evaluate(self, solution, train=True):
+    def evaluate(self, solution, train=True, feature_name=None):
         if train:
             if self.classifier_name == 'linear':
                 total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=True, clinic_include=train)
@@ -91,9 +100,14 @@ class FsProblem:
                 if total_x is None:
                     return 0
 
-                loss = self.train_model(solution,total_x, total_y)
+                loss = self.train_model(solution, total_x, total_y)
 
                 reward = 1.0 / (loss+1e-8)
+            elif self.classifier_name == 'cox':
+                reward = self.calcualte_reward(solution, train=train)
+
+                if reward is None:
+                    return
 
         else:
             total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=True)
@@ -102,19 +116,58 @@ class FsProblem:
 
             if self.classifier_name == 'linear':
                 self.classifier.fit(train_x, train_y)
+                predict = self.classifier.predict(test_x)
+
+                # metrics.accuracy_score(predict,test_y)
+                reward = 0  # = 1.0 / metrics.mean_squared_error(test_y, predict)
+
+                self.get_shap_value(train_x, test_x)
             elif self.classifier_name == 'deep':
                 self.train_best_solution_model(train_x, train_y, test_x, test_y)
+                predict = self.classifier.predict(test_x)
 
-            predict = self.classifier.predict(test_x)
+                # metrics.accuracy_score(predict,test_y)
+                reward = 0  # = 1.0 / metrics.mean_squared_error(test_y, predict)
 
-            # metrics.accuracy_score(predict,test_y)
-            reward = 0 #= 1.0 / metrics.mean_squared_error(test_y, predict)
-
-            self.get_shap_value(train_x, test_x)
+                self.get_shap_value(train_x, test_x)
+            elif self.classifier_name == 'cox':
+                reward = self.calcualte_reward(solution, train=train)
 
         return reward
 
         # results = cross_val_score(self.classifier, X, Y, cv=cv,scoring='accuracy')
+    def calcualte_reward(self, solution, train=True):
+
+        sol_list = Solution.sol_to_list(solution)
+
+        smallgene = pd.DataFrame.copy(pd.concat([self.reward_df.iloc[:, sol_list], self.reward_df['Treatment'],
+                               self.reward_df['time'], self.reward_df['event']], axis=1))
+
+        t = smallgene["Treatment"] == 1
+        f = smallgene["Treatment"] == 0
+
+        smallgene = smallgene.drop("Treatment", axis=1)
+
+        cox1 = CoxPHFitter() # 치료 받은 환자 데이터
+        cox1.fit(smallgene[t], duration_col='time', event_col='event', show_progress=False)
+
+        cox2 = CoxPHFitter() # 치료 안받은 환자 데이터
+        cox2.fit(smallgene[f], duration_col='time', event_col='event', show_progress=False)
+
+        if train:
+            diff = cox2.params_ - cox1.params_
+            diff.sort_values(ascending=False)
+
+            return sum(diff[:10])
+        else:
+            # cross-validation
+            cox_cv_result = k_fold_cross_validation(cox1, smallgene[t], duration_col='time', event_col='event', k=5,
+                                                    scoring_method="concordance_index",seed=self.config['seed'])
+            print('C-index(cross-validation) = ', np.mean(cox_cv_result))
+            cox_cv_result = k_fold_cross_validation(cox2, smallgene[f], duration_col='time', event_col='event', k=5,
+                                                    scoring_method="concordance_index",seed=self.config['seed'])
+            print('C-index(cross-validation) = ', np.mean(cox_cv_result))
+
 
     def get_shap_value(self, train_x, test_x):
         '''
@@ -136,7 +189,9 @@ class FsProblem:
 
             # 전체 검증 데이터 셋에 대해서 적용
             shap_values = ex.shap_values(test_x)
-            shap.summary_plot(shap_values, test_x,max_display=100)
+
+            test_x_df = pd.DataFrame(test_x, columns=self.data.columns[:-1])
+            shap.summary_plot(shap_values, test_x_df, max_display=30)
             plt.savefig('./linear_regression_result.jpg')
 
             #explainer = shap.Explainer(self.classifier)
@@ -149,6 +204,11 @@ class FsProblem:
             shap.initjs()
 
             ex = shap.DeepExplainer(self.classifier())
+            shap_value = ex.shap_values(test_x)
+            shap.summary_plot(shap_value, test_x, show=False)
+
+            plt.savefig('shap.png')
+
 
     def train_model(self,solution, total_x, total_y):
         criterion = nn.MSELoss()
