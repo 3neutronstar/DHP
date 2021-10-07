@@ -12,7 +12,8 @@ import torch.nn as nn
 from torch.autograd import Variable
 from model import Model
 from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
+
+from utils import AverageMeter, ProgressMeter
 
 class FsProblem:
     def __init__(self, typeOfAlgo, data, clinical_data, qlearn, classifier=KNeighborsClassifier(n_neighbors=1)):
@@ -34,7 +35,7 @@ class FsProblem:
         self.typeOfAlgo = typeOfAlgo
         self.clinical_variable_data = clinical_data.values
         self.test_size = 0.1
-        self.cv_n_split = 10
+        self.cv_n_split = 5
 
     def _prepare_data(self, solution, cross_validation_flag=False, clinic_include=False):
         '''
@@ -82,16 +83,15 @@ class FsProblem:
                                                  cv=cv, scoring='neg_mean_squared_error')
                 reward = results.mean()
             elif self.classifier_name == 'deep':
-                self.classifier = Model(sum(solution) + 10)
 
                 total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=train)
 
                 if total_x is None:
                     return 0
 
-                loss = self.train_model(total_x, total_y)
+                loss = self.train_model(solution,total_x, total_y)
 
-                reward = 1.0 / loss
+                reward = 1.0 / (loss+1e-8)
 
         else:
             total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=train)
@@ -101,7 +101,7 @@ class FsProblem:
             if self.classifier_name == 'linear':
                 self.classifier.fit(train_x, train_y)
             elif self.classifier_name == 'deep':
-                self.train_model(train_x, train_y)
+                self.train_model(solution,train_x, train_y)
 
             predict = self.classifier.predict(test_x)
 
@@ -143,21 +143,21 @@ class FsProblem:
             #shap.plots.waterfall(shap_values[0])
             #plt.savefig('./xgboost_waterfall_result.jpg')
 
-    def train_model(self, total_x, total_y):
+    def train_model(self,solution, total_x, total_y):
         criterion = nn.MSELoss()
 
         #optimizer = torch.optim.SGD(self.classifier.parameters(), lr=0.1)
-        optimizer = torch.optim.Adam(self.classifier.parameters(), lr=0.01)
         total_valid_loss = 0.0
 
-        n_epochs = 100
+        n_epochs = 15
         kfold = KFold(n_splits=self.cv_n_split, random_state=0, shuffle=True)
         i = 0
 
         for cv_ind,(train_index, validate_index) in enumerate(kfold.split(total_x)):
+            self.classifier = Model(sum(solution) + 10)
+            optimizer = torch.optim.Adam(self.classifier.parameters(), lr=0.001)
             print(str(cv_ind+1), " CV index")
             i = i + 1
-            running_loss = 0.0
 
             x_train, x_validate = total_x[train_index], total_x[validate_index]
             y_train, y_validate = total_y[train_index], total_y[validate_index]
@@ -171,16 +171,19 @@ class FsProblem:
             train_dataset = TensorDataset(train_inputs, train_targets)
             valid_dataset = TensorDataset(val_inputs, val_targets)
 
-            train_loader = DataLoader(train_dataset, batch_size=5, shuffle=True, drop_last=True)
+            train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True, drop_last=True)
             valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False)
 
             # train
             for epoch in range(n_epochs):
-                print(f"Epoch : {epoch}", end="\r")
+                losses = AverageMeter('Loss', ':.4e')
+                progress = ProgressMeter(
+                    len(train_loader),
+                    [losses],
+                    prefix="Epoch: [{}]".format(epoch))
                 self.classifier.train()
 
-                pbar = tqdm(train_loader, position=0, leave=True)
-                for i,(input, target) in enumerate(pbar):
+                for i,(input, target) in enumerate(train_loader):
                     optimizer.zero_grad()
                     input = Variable(input)
                     target = Variable(target)
@@ -190,26 +193,25 @@ class FsProblem:
 
                     loss.backward()
                     optimizer.step()
+                    losses.update(loss.item(), input.size(0))
+                    # if i % 2 == 0:
+                    #     progress.display(i)
+                # print("[{} epoch] Train Loss {:.4f}".format(i,losses.avg))
 
-                    running_loss += loss.data.numpy()
-                    train_loss = running_loss/float(i+1)
+                # evaluate
+                losses = AverageMeter('Loss', ':.4e')
 
-                    tqdm.write('{:.4f}'.format(train_loss), end='')
-                    tqdm._instances.clear()
+                self.classifier.eval()
+                for input, target in valid_loader:
+                    with torch.no_grad():
+                        input = Variable(input)
+                        target = Variable(target)
 
-            print('train loss: ', running_loss)
-            # evaluate
-            self.classifier.train(False)
-            for input, target in valid_loader:
-                input = Variable(input)
-                target = Variable(target)
+                        predict = self.classifier(input)
+                        loss = criterion(predict, target)
+                    losses.update(loss.item(), input.size(0))
+                if epoch%5==0:
+                    print("cv {} [{} epoch] Eval Loss {:.4f}".format(cv_ind,epoch,losses.avg))
 
-                predict = self.classifier(input)
-                loss = criterion(predict, target)
 
-                running_loss += loss.data.numpy()
-
-            total_valid_loss += running_loss
-
-        print('train loss: ', running_loss)
         return total_valid_loss / self.cv_n_split
