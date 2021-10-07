@@ -124,7 +124,8 @@ class FsProblem:
         :return: 없음.
         '''
         # 그래프 초기화
-        if isinstance(self.classifier,LinearRegression):
+        if self.classifier_name == 'linear':
+
             shap.initjs()
 
             ex = shap.KernelExplainer(self.classifier.predict, train_x)
@@ -149,15 +150,13 @@ class FsProblem:
         criterion = nn.MSELoss()
 
         #optimizer = torch.optim.SGD(self.classifier.parameters(), lr=0.1)
-        total_valid_loss = 0.0
 
         n_epochs = 15
         kfold = KFold(n_splits=self.cv_n_split, random_state=0, shuffle=True)
-        valid_loss=[]
+        total_valid_loss=[]
         for cv_ind,(train_index, validate_index) in enumerate(kfold.split(total_x)):
             self.classifier = Model(sum(solution) + 10)
             optimizer = torch.optim.Adam(self.classifier.parameters(), lr=0.001)
-            print(str(cv_ind+1), " CV index")
 
             x_train, x_validate = total_x[train_index], total_x[validate_index]
             y_train, y_validate = total_y[train_index], total_y[validate_index]
@@ -210,10 +209,12 @@ class FsProblem:
                         predict = self.classifier(input)
                         loss = criterion(predict, target)
                     eval_losses.update(loss.item(), input.size(0))
-                if epoch%5==0:
-                    print("cv {} [{} epoch] Eval Loss {:.4f}".format(cv_ind,epoch,eval_losses.avg))
+                # if epoch%5==0:
+                #     print("cv {} [{} epoch] Eval Loss {:.4f}".format(cv_ind,epoch,eval_losses.avg))
                 if best_loss>eval_losses.avg:
                     best_loss=eval_losses.avg
-            print(best_loss)
-            valid_loss.append(best_loss)
-        return torch.tensor(valid_loss).mean()
+            print('\r[{}/{} cv] best eval loss {:.4f}'.format(cv_ind+1,self.cv_n_split,best_loss),end='')
+            total_valid_loss.append(best_loss)
+        return_loss=torch.tensor(total_valid_loss).mean()
+        print(" RETURN Loss: {:.4f}".format(return_loss.item()))
+        return return_loss
