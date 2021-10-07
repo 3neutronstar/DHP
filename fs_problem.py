@@ -103,7 +103,7 @@ class FsProblem:
             if self.classifier_name == 'linear':
                 self.classifier.fit(train_x, train_y)
             elif self.classifier_name == 'deep':
-                self.train_model(solution,train_x, train_y)
+                self.train_best_solution_model(train_x, train_y, test_x, test_y)
 
             predict = self.classifier.predict(test_x)
 
@@ -145,6 +145,10 @@ class FsProblem:
             # visualize the first prediction's explanation
             #shap.plots.waterfall(shap_values[0])
             #plt.savefig('./xgboost_waterfall_result.jpg')
+        elif self.classifier_name == 'deep':
+            shap.initjs()
+
+            ex = shap.DeepExplainer(self.classifier())
 
     def train_model(self,solution, total_x, total_y):
         criterion = nn.MSELoss()
@@ -218,3 +222,56 @@ class FsProblem:
         return_loss=torch.tensor(total_valid_loss).mean()
         print(" RETURN Loss: {:.4f}".format(return_loss.item()))
         return return_loss
+
+    def train_best_solutoin_model(self, train_x, train_y, test_x, test_y):
+        train_dataset = TensorDataset(train_x, train_y)
+        valid_dataset = TensorDataset(test_x, test_y)
+
+        train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True, drop_last=True)
+        valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False)
+        best_loss = 10000.0
+
+        self.classifier = Model(train_x.shape[1])#sum(solution) + 10)
+        optimizer = torch.optim.Adam(self.classifier.parameters(), lr=0.001)
+        criterion = nn.MSELoss()
+        # train
+        for epoch in range(15):
+            train_losses = AverageMeter('Loss', ':.4e')
+            progress = ProgressMeter(
+                len(train_loader),
+                [train_losses],
+                prefix="Epoch: [{}]".format(epoch))
+            self.classifier.train()
+
+            for i, (input, target) in enumerate(train_loader):
+                optimizer.zero_grad()
+                input = Variable(input)
+                target = Variable(target)
+
+                predict = self.classifier(input)
+                loss = criterion(predict, target)
+
+                loss.backward()
+                optimizer.step()
+                train_losses.update(loss.item(), input.size(0))
+
+            # evaluate
+            eval_losses = AverageMeter('Loss', ':.4e')
+
+            self.classifier.eval()
+            for input, target in valid_loader:
+                with torch.no_grad():
+                    input = Variable(input)
+                    target = Variable(target)
+
+                    predict = self.classifier(input)
+                    loss = criterion(predict, target)
+                eval_losses.update(loss.item(), input.size(0))
+            if epoch % 5 == 0:
+                print("[{} epoch] Eval Loss {:.4f}".format(epoch, eval_losses.avg))
+            if best_loss > eval_losses.avg:
+                best_loss = eval_losses.avg
+
+        print(best_loss)
+
+        return best_loss
