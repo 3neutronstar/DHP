@@ -69,6 +69,8 @@ class FsProblem:
         else:
             split_info = train_test_split(total_x, total_y, random_state=0, test_size=self.test_size)
 
+        total_y = total_y.reshape(total_y.shape[0], 1)
+
         return total_x, total_y, split_info
 
     def evaluate(self, solution, train=True):
@@ -146,7 +148,6 @@ class FsProblem:
     def train_model(self,solution, total_x, total_y):
         criterion = nn.MSELoss()
 
-        #optimizer = torch.optim.SGD(self.classifier.parameters(), lr=0.1)
         total_valid_loss = 0.0
 
         n_epochs = 15
