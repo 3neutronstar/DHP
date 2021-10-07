@@ -86,7 +86,7 @@ class FsProblem:
                 reward = results.mean()
             elif self.classifier_name == 'deep':
 
-                total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=train)
+                total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=True)
 
                 if total_x is None:
                     return 0
@@ -96,7 +96,7 @@ class FsProblem:
                 reward = 1.0 / (loss+1e-8)
 
         else:
-            total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=train)
+            total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=True)
 
             train_x, test_x, train_y, test_y = split_info
 
