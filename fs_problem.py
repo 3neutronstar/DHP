@@ -69,6 +69,8 @@ class FsProblem:
         else:
             split_info = train_test_split(total_x, total_y, random_state=0, test_size=self.test_size)
 
+        total_y = total_y.reshape(total_y.shape[0], 1)
+
         return total_x, total_y, split_info
 
     def evaluate(self, solution, train=True):
@@ -91,7 +93,7 @@ class FsProblem:
 
                 loss = self.train_model(solution,total_x, total_y)
 
-                reward = 1.0 / loss
+                reward = 1.0 / (loss+1e-8)
 
         else:
             total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=train)
@@ -212,5 +214,6 @@ class FsProblem:
                     print("cv {} [{} epoch] Eval Loss {:.4f}".format(cv_ind,epoch,eval_losses.avg))
                 if best_loss>eval_losses.avg:
                     best_loss=eval_losses.avg
-            valid_loss.append(best_loss.view(-1))
-        return torch.cat(valid_loss,dim=0).mean()
+            print(best_loss)
+            valid_loss.append(best_loss)
+        return torch.tensor(valid_loss).mean()
