@@ -24,6 +24,7 @@ class FSData():
         treatment=self.dl.get_treatment()
         clinic_var=self.dl.get_clinic_var()
 
+        self.all_df = pd.concat((gene, clinic_var, survival_time, treatment, event), axis=1)
         df=pd.concat((gene,event,treatment, clinic_var,survival_time),axis=1)
         df=df.loc[df['event']==1]
         df=df.loc[df['Treatment'] == config['treatment']]
@@ -36,7 +37,8 @@ class FSData():
         self.classifier_name = config['classifier']
 
         self.ql = QLearning(len(self.df.columns),Solution.attributs_to_flip(len(self.df.columns)-1),alpha,gamma,epsilon)
-        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=self.classifier_name)
+        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,
+                             classifier=self.classifier_name, reward_df=self.all_df)
         self.classifier_name = config['classifier']
 
         path = os.path.join('results', 'parameters', method, test_param, param, val, self.classifier_name, self.dataset_name)
@@ -74,14 +76,15 @@ class FSData():
         
         for itr in range(1,self.nb_exec+1):
           print ("Execution {0}".format(str(itr)))
-          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=self.classifier_name)
+          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,
+                               classifier=self.classifier_name, reward_df=self.all_df)
           swarm = Swarm(self.fsd,flip,max_chance,bees_number,maxIterations,locIterations)
 
           t1 = time.time()
           best, best_solution = swarm.bso(self.typeOfAlgo,flip)
           t2 = time.time()
 
-          self.fsd.evaluate(best_solution, train=False)
+          self.fsd.evaluate(best_solution, train=False, feature_name=self.dl.gene_p_value_arg_min)
           total_time += t2-t1
           print("Time elapsed for execution {0} : {1:.2f} s\n".format(itr,t2-t1))
           self.worksheet.write(itr, 0, itr)
