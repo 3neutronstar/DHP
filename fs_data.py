@@ -23,6 +23,7 @@ class FSData():
         event=self.dl.get_event()
         treatment=self.dl.get_treatment()
         clinic_var=self.dl.get_clinic_var()
+        self.config=config
 
         self.all_df = pd.concat((gene, clinic_var, survival_time, treatment, event), axis=1)
         df=pd.concat((gene,event,treatment, clinic_var,survival_time),axis=1)
@@ -38,7 +39,7 @@ class FSData():
 
         self.ql = QLearning(len(self.df.columns),Solution.attributs_to_flip(len(self.df.columns)-1),alpha,gamma,epsilon)
         self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,
-                             classifier=self.classifier_name, reward_df=self.all_df)
+                             classifier=self.classifier_name, reward_df=self.all_df,config=config)
         self.classifier_name = config['classifier']
 
         path = os.path.join('results', 'parameters', method, test_param, param, val, self.classifier_name, self.dataset_name)
@@ -77,7 +78,7 @@ class FSData():
         for itr in range(1,self.nb_exec+1):
           print ("Execution {0}".format(str(itr)))
           self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,
-                               classifier=self.classifier_name, reward_df=self.all_df)
+                               classifier=self.classifier_name, reward_df=self.all_df,config=self.config)
           swarm = Swarm(self.fsd,flip,max_chance,bees_number,maxIterations,locIterations)
 
           t1 = time.time()

@@ -13,12 +13,14 @@ import torch.nn as nn
 from torch.autograd import Variable
 from model import Model
 from torch.utils.data import DataLoader, TensorDataset
+from lifelines import CoxPHFitter
+from lifelines.utils import k_fold_cross_validation
 
 from utils import AverageMeter, ProgressMeter
 
 class FsProblem:
     def __init__(self, typeOfAlgo, data, clinical_data, qlearn,
-                 classifier=KNeighborsClassifier(n_neighbors=1), reward_df=None):
+                 classifier=KNeighborsClassifier(n_neighbors=1), reward_df=None,config=None):
         self.data = data
         self.nb_attribs = len(
             self.data.columns) - 1  # The number of features is the size of the dataset - the 1 column of labels
@@ -42,6 +44,7 @@ class FsProblem:
         self.test_size = 0.1
         self.cv_n_split = 5
         self.reward_df = reward_df
+        self.config=config
 
     def _prepare_data(self, solution, cross_validation_flag=False, clinic_include=False):
         '''
@@ -134,7 +137,6 @@ class FsProblem:
 
         # results = cross_val_score(self.classifier, X, Y, cv=cv,scoring='accuracy')
     def calcualte_reward(self, solution, train=True):
-        from lifelines import CoxPHFitter
 
         sol_list = Solution.sol_to_list(solution)
 
@@ -156,17 +158,14 @@ class FsProblem:
             diff = cox2.params_ - cox1.params_
             diff.sort_values(ascending=False)
 
-            print(-1 * sum(diff[:11]))
-
-            return -1 * sum(diff[:11])
+            return sum(diff[:10])
         else:
-            from lifelines.utils import k_fold_cross_validation
             # cross-validation
             cox_cv_result = k_fold_cross_validation(cox1, smallgene[t], duration_col='time', event_col='event', k=5,
-                                                    scoring_method="concordance_index")
+                                                    scoring_method="concordance_index",seed=self.config['seed'])
             print('C-index(cross-validation) = ', np.mean(cox_cv_result))
             cox_cv_result = k_fold_cross_validation(cox2, smallgene[f], duration_col='time', event_col='event', k=5,
-                                                    scoring_method="concordance_index")
+                                                    scoring_method="concordance_index",seed=self.config['seed'])
             print('C-index(cross-validation) = ', np.mean(cox_cv_result))
 
 

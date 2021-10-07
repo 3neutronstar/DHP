@@ -17,7 +17,7 @@ if __name__=="__main__":
 
     flip = 3
     max_chance = 5
-    bees_number = 1
+    bees_number = 10
     maxIterations = 20
     locIterations = 20
 
@@ -38,7 +38,8 @@ if __name__=="__main__":
 
     config = {
         'treatment': 0, # 0이면 치료받지 않은 환자 데이터 가져오기, 1이면 치료받은 환자 데이터 가져오기
-        'classifier': "cox" # linear이면 reward함수 linear regression, deep이면 MLP.
+        'classifier': "cox", # linear이면 reward함수 linear regression, deep이면 MLP.
+        'seed':seed
     }
     instance = FSData(typeOfAlgo,location,nbr_exec,method,test_param,param,val,alhpa,gamma,epsilon,num_k_gene, config)
     instance.run(flip,max_chance,bees_number,maxIterations,locIterations)
