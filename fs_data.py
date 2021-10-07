@@ -29,7 +29,7 @@ class FSData():
         df=df.loc[df['Treatment'] == config['treatment']]
         df.drop(columns=['Treatment', 'event'], inplace=True)
 
-        self.clinical_variable = df.loc[:, 'Var1':'Var11']
+        self.clinical_variable = df.loc[:, 'Var1':'Var10']
         df.drop(columns=['Var'+str(col) for col in range(1, 11)], inplace=True)
 
         self.df=df
