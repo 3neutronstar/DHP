@@ -9,7 +9,7 @@ import xlsxwriter
 
 class FSData():
 
-    def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val, classifier,
+    def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val,
                  alpha=None,gamma=None,epsilon=None,num_k_gene=30, config=None):
 
         self.typeOfAlgo = typeOfAlgo
@@ -25,27 +25,29 @@ class FSData():
         clinic_var=self.dl.get_clinic_var()
 
         df=pd.concat((gene,survival_time,event,treatment, clinic_var),axis=1)
-        print(df.columns)
         df=df.loc[df['event']==1]
         df=df.loc[df['Treatment']==config['treatment']]
+        df.drop(columns=['Treatment', 'event'], inplace=True)
+
         self.clinical_variable = df.loc[:, 'Var1':]
-        df.drop(columns=['Treatment','event'],inplace=True)
         df.drop(columns=['Var'+str(col) for col in range(1, 10)], inplace=True)
+
         self.df=df
-        self.classifier=classifier
+        self.classifier_name = config['classifier']
 
         self.ql = QLearning(len(self.df.columns),Solution.attributs_to_flip(len(self.df.columns)-1),alpha,gamma,epsilon)
-        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=classifier)
-        self.classifier_name = str(type(self.fsd.classifier)).strip('< > \' class ').split('.')[-1]
+        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=self.classifier_name)
+        self.classifier_name = config['classifier']
 
-        path = './results/parameters/'+method+'/'+test_param+'/'+param+'/'+val+'/'+classifier+'/'+ self.dataset_name
-        if not os.path.exists(path):
-          os.makedirs(path + '/logs/')
-          os.makedirs(path + '/sheets/')
-        self.instance_name = self.dataset_name + '_' +  str(time.strftime("%m-%d-%Y_%H-%M-%S_", time.localtime()) + self.classifier_name)
-        log_filename = str(path + '/logs/'+ self.instance_name)
-        if not os.path.exists(path):
-          os.makedirs(path)
+        path = os.path.join('results', 'parameters', method, test_param, param, val, self.classifier_name, self.dataset_name)
+        log_dir = os.path.join(path, 'logs')
+        sheet_dir = os.path.join(path, 'sheets')
+        os.makedirs(log_dir, exist_ok=True)
+        os.makedirs(sheet_dir, exist_ok=True)
+
+        self.instance_name = self.dataset_name + '_' + str(time.strftime("%m-%d-%Y_%H-%M-%S_", time.localtime()) + self.classifier_name)
+        log_filename = os.path.join(log_dir, self.instance_name)
+
         log_file = open(log_filename + '.txt','w+')
         # sys.stdout = log_file
         
@@ -54,10 +56,8 @@ class FSData():
         print(self.df.describe())
         print("\n[END] Dataset " + self.dataset_name + " description\n")
         print("[START] Ressources specifications\n")
-        #os.exec('cat /proc/cpuinfo') # Think of changing this when switching between Windows & Linux
         print("[END] Ressources specifications\n")
 
-        
         sheet_filename = str(path + '/sheets/'+ self.instance_name )
         self.workbook = xlsxwriter.Workbook(sheet_filename + '.xlsx')
         
@@ -74,11 +74,13 @@ class FSData():
         
         for itr in range(1,self.nb_exec+1):
           print ("Execution {0}".format(str(itr)))
-          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=self.classifier)
+          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,classifier=self.classifier_name)
           swarm = Swarm(self.fsd,flip,max_chance,bees_number,maxIterations,locIterations)
+
           t1 = time.time()
           best, best_solution = swarm.bso(self.typeOfAlgo,flip)
           t2 = time.time()
+
           self.fsd.evaluate(best_solution, train=False)
           total_time += t2-t1
           print("Time elapsed for execution {0} : {1:.2f} s\n".format(itr,t2-t1))
