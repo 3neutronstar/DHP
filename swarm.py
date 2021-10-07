@@ -165,11 +165,11 @@ class Swarm :
         print("Nbr of Loc Iterations : {0}\n".format(self.locIterations))
         print("Must 10% used features : ",self.best_features())
         print("Best solution found : ",self.bestSolution.solution.get_state())
-        print("Accuracy of found sol : {0:.2f} ".format(self.bestSolution.fitness*100))
+        print("Accuracy of found sol : {0:.2f} ".format(self.bestSolution.fitness))
         print("Number of features used : {0}".format(Solution.nbrUn(self.bestSolution.solution.get_state())))
         print("Size of solutions dict : {0}".format(len(Solution.solutions)))
         print("Average time to evaluate a solution : {0:.3f} s".format(Solution.get_avg_time())) 
-        print("Global optimum : {0}, {1:.2f}".format(Solution.get_best_sol()[0],Solution.get_best_sol()[1]*100))
+        print("Global optimum : {0}, {1:.2f}".format(Solution.get_best_sol()[0],Solution.get_best_sol()[1]))
         if (typeOfAlgo == 1):
           print("Return (Q-value) : ",self.bestSolution.rl_return)  
           #print("Total sorting time : {0:.2f} s".format(Solution.sorting_time))
