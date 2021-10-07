@@ -68,25 +68,28 @@ class FsProblem:
 
         return total_x, total_y, split_info
 
-    def evaluate(self, solution, train=True):
-        total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_var=train)
+    def evaluate(self, solution,final=False):
 
         self.classifier = self._set_model(type=self.classifier_name)
 
-        if total_x is None:
-            return 0
+        total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=(not final), clinic_var=True)
+        if final:
+            if total_x is None:
+                return 0
+            train_x, test_x, train_y, test_y = split_info
 
-        train_x, test_x, train_y, test_y = split_info
+            self.classifier.fit(train_x, train_y)
+            predict = self.classifier.predict(test_x)
 
-        self.classifier.fit(train_x, train_y)
-        predict = self.classifier.predict(test_x)
-
-        # metrics.accuracy_score(predict,test_y)
-        reward = 1.0 / metrics.mean_squared_error(test_y, predict)
-
-        if not train:
+            # metrics.accuracy_score(predict,test_y)
+            reward = 1.0 / metrics.mean_squared_error(test_y, predict)
             self.get_shap_value(train_x, test_x)
             self._save_model()
+        else:
+            cv = split_info
+            results = -1.0 / cross_val_score(self.classifier, total_x, total_y,
+                                             cv=cv, scoring='neg_mean_squared_error')
+            reward = results.mean()
 
         return reward
 

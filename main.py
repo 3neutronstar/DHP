@@ -38,9 +38,9 @@ if __name__=="__main__":
         "gene_num_train": 4,  # 전처리를 통해 추출할 유전자 수
     }
 
-    for model in ['linear_regression', 'lightgbm']:
-        for treat in [0,1]:
-            for gene_n in [30, 40, 50]:
+    for model in ['linear_regression']:
+        for treat in [1]:
+            for gene_n in [50]:
                 config["classifier"] = model
                 config['treatment'] = treat
                 config['gene_num_train'] = gene_n

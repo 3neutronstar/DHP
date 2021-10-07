@@ -85,7 +85,7 @@ class FSData():
           t1 = time.time()
           best, best_solution = swarm.bso(self.typeOfAlgo,flip)
           t2 = time.time()
-          self.fsd.evaluate(best_solution, train=False)
+          self.fsd.evaluate(best_solution,final=True)
           total_time += t2-t1
           print("Time elapsed for execution {0} : {1:.2f} s\n".format(itr,t2-t1))
           self.worksheet.write(itr, 0, itr)

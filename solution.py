@@ -27,7 +27,7 @@ class Solution:
 
     def set_accuracy(self,state): 
         t1 = time.time()
-        Solution.solutions[Solution.str_sol(state)] = self.data.evaluate(state, train=True)
+        Solution.solutions[Solution.str_sol(state)] = self.data.evaluate(state, final=False)
         self.accuracy = Solution.solutions[Solution.str_sol(state)]
         t2 = time.time()
         Solution.tot_eval_time += t2-t1
