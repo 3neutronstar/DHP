@@ -168,6 +168,29 @@ class FsProblem:
                                                     scoring_method="concordance_index",seed=self.config['seed'])
             print('C-index(cross-validation) = ', np.mean(cox_cv_result))
 
+            smallgene = pd.DataFrame.copy(pd.concat([self.reward_df.iloc[:, sol_list], self.reward_df['Treatment'],
+                        self.reward_df['time'], self.reward_df['event']], axis=1))
+
+            t = smallgene["Treatment"] == 1
+            f = smallgene["Treatment"] == 0
+
+            smallgene = smallgene.drop("Treatment", axis=1)
+
+            cox1 = CoxPHFitter() # 치료 받은 환자 데이터
+            cox1.fit(smallgene[t], duration_col='time', event_col='event', show_progress=False)
+
+            cox2 = CoxPHFitter() # 치료 안받은 환자 데이터
+            cox2.fit(smallgene[f], duration_col='time', event_col='event', show_progress=False)
+            print(solution)
+            smallgene.to_csv('./data.csv')
+            import pickle
+            with open('./cox1.pkl','wb') as f1:
+                pickle.dump(cox1,f1)
+            with open('./cox2.pkl','wb') as f2:
+                pickle.dump(cox2,f2)
+
+
+
 
     def get_shap_value(self, train_x, test_x):
         '''
