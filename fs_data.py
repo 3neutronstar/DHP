@@ -24,12 +24,12 @@ class FSData():
         treatment=self.dl.get_treatment()
         clinic_var=self.dl.get_clinic_var()
 
-        df=pd.concat((gene,survival_time,event,treatment, clinic_var),axis=1)
+        df=pd.concat((gene,event,treatment, clinic_var,survival_time),axis=1)
         df=df.loc[df['event']==1]
-        df=df.loc[df['Treatment']==config['treatment']]
+        df=df.loc[df['Treatment'] == config['treatment']]
         df.drop(columns=['Treatment', 'event'], inplace=True)
 
-        self.clinical_variable = df.loc[:, 'Var1':]
+        self.clinical_variable = df.loc[:, 'Var1':'Var10']
         df.drop(columns=['Var'+str(col) for col in range(1, 10)], inplace=True)
 
         self.df=df

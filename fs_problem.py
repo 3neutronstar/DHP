@@ -1,31 +1,34 @@
 # -*- coding: utf-8 -*-
-from pandas.core.frame import DataFrame
 from sklearn import metrics
 from sklearn.model_selection import train_test_split, cross_val_score, KFold, StratifiedKFold, ShuffleSplit
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
-from sklearn.preprocessing import StandardScaler
-from xgboost.sklearn import XGBRegressor
 from solution import Solution
 from sklearn.linear_model import LinearRegression
 import numpy as np
 import shap
-import xgboost
 import matplotlib.pyplot as plt
+import torch
+import torch.nn as nn
+from torch.autograd import Variable
+from model import Model
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 
 class FsProblem:
     def __init__(self, typeOfAlgo, data, clinical_data, qlearn, classifier=KNeighborsClassifier(n_neighbors=1)):
         self.data = data
         self.nb_attribs = len(
             self.data.columns) - 1  # The number of features is the size of the dataset - the 1 column of labels
-        self.outPuts = self.data.iloc[:,
-                       self.nb_attribs]  # We initilize the labels from the last column of the dataset # 마지막 column이 정답
+        self.outPuts = self.data.loc[:,
+                       'time']  # We initilize the labels from the last column of the dataset # 마지막 column이 정답
         self.ql = qlearn
         # self.classifier = classifier # classifier 대신에 xgboost같은거 넣으면 됨
-        if classifier=='linear':
+        self.classifier_name = classifier
+
+        if self.classifier_name=='linear':
             self.classifier = LinearRegression()
-        elif classifier=='xgb':
-            self.classifier = xgboost.XGBRegressor(n_estimators=100, learning_rate=0.08, gamma=0, subsample=0.75, colsample_bytree=1, max_depth=9)
+        elif self.classifier_name == 'deep':
+            self.classifier = None
         else:
             raise NotImplementedError
         self.typeOfAlgo = typeOfAlgo
@@ -33,7 +36,7 @@ class FsProblem:
         self.test_size = 0.1
         self.cv_n_split = 10
 
-    def _prepare_data(self, solution, cross_validation_flag=False, train=False):
+    def _prepare_data(self, solution, cross_validation_flag=False, clinic_include=False):
         '''
         현재 state의 solution 상태를 보고 적절한 데이터 구조로 x, y 데이터와 구체적인 split 정보를 반환해준다.
         cross_validation_flag가 True면 split_info는 cross validation policy 반환.
@@ -53,12 +56,12 @@ class FsProblem:
         array = df.values
 
         gene_x = array[:, 0:self.nb_attribs]  # clinical variable 추가 위치
-        if train:
+        if clinic_include:
             total_x = np.concatenate((gene_x, self.clinical_variable_data), axis=1)
         else:
-            total_x = gene_x
+            total_x = gene_x.to_numpy()
 
-        total_y = np.log(self.outPuts)
+        total_y = np.log(self.outPuts).to_numpy()
 
         if cross_validation_flag:
             split_info = ShuffleSplit(n_splits=self.cv_n_split, test_size=self.test_size, random_state=0)
@@ -68,24 +71,42 @@ class FsProblem:
         return total_x, total_y, split_info
 
     def evaluate(self, solution, train=True):
-        total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=train, train=train)
-
-        if total_x is None:
-            return 0
-
         if train:
-            cv = split_info
-            results = -1.0 / cross_val_score(self.classifier, total_x, total_y,
-                                             cv=cv, scoring='neg_mean_squared_error')
-            reward = results.mean()
+            if self.classifier_name == 'linear':
+                total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=True, clinic_include=train)
+                if total_x is None:
+                    return 0
+
+                cv = split_info
+                results = -1.0 / cross_val_score(self.classifier, total_x, total_y,
+                                                 cv=cv, scoring='neg_mean_squared_error')
+                reward = results.mean()
+            elif self.classifier_name == 'deep':
+                self.classifier = Model(sum(solution) + 10)
+
+                total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=train)
+
+                if total_x is None:
+                    return 0
+
+                loss = self.train_model(total_x, total_y)
+
+                reward = 1.0 / loss
+
         else:
+            total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=train)
+
             train_x, test_x, train_y, test_y = split_info
 
-            self.classifier.fit(train_x, train_y)
+            if self.classifier_name == 'linear':
+                self.classifier.fit(train_x, train_y)
+            elif self.classifier_name == 'deep':
+                self.train_model(train_x, train_y)
+
             predict = self.classifier.predict(test_x)
 
             # metrics.accuracy_score(predict,test_y)
-            reward = 1.0 / metrics.mean_squared_error(test_y, predict)
+            reward = 0 #= 1.0 / metrics.mean_squared_error(test_y, predict)
 
             self.get_shap_value(train_x, test_x)
 
@@ -107,22 +128,88 @@ class FsProblem:
             ex = shap.KernelExplainer(self.classifier.predict, train_x)
 
             # 첫번째 test dataset 하나에 대해서 shap value를 적용하여 시각화
-            shap_values = ex.shap_values(test_x[0, :])
-            shap.force_plot(ex.expected_value, shap_values, test_x[0, :])
+            #shap_values = ex.shap_values(test_x[0, :])
+            #shap.force_plot(ex.expected_value, shap_values, test_x[0, :])
 
             # 전체 검증 데이터 셋에 대해서 적용
             shap_values = ex.shap_values(test_x)
             shap.summary_plot(shap_values, test_x)
             plt.savefig('./linear_regression_result.jpg')
-        elif isinstance(self.classifier,XGBRegressor):
-            self.classifier.plot_importance()
-            plt.savefig('./xgboost_importance_result.jpg')
-            plt.close()
 
-            explainer = shap.Explainer(self.classifier)
-            shap_values = explainer(test_x[0,:])
+            #explainer = shap.Explainer(self.classifier)
+            #shap_values = explainer(test_x[0,:])
 
             # visualize the first prediction's explanation
-            shap.plots.waterfall(shap_values[0])
-            plt.savefig('./xgboost_waterfall_result.jpg')
+            #shap.plots.waterfall(shap_values[0])
+            #plt.savefig('./xgboost_waterfall_result.jpg')
 
+    def train_model(self, total_x, total_y):
+        criterion = nn.MSELoss()
+
+        #optimizer = torch.optim.SGD(self.classifier.parameters(), lr=0.1)
+        optimizer = torch.optim.Adam(self.classifier.parameters(), lr=0.01)
+        total_valid_loss = 0.0
+
+        n_epochs = 100
+        kfold = KFold(n_splits=self.cv_n_split, random_state=0, shuffle=True)
+        i = 0
+
+        for cv_ind,(train_index, validate_index) in enumerate(kfold.split(total_x)):
+            print(str(cv_ind+1), " CV index")
+            i = i + 1
+            running_loss = 0.0
+
+            x_train, x_validate = total_x[train_index], total_x[validate_index]
+            y_train, y_validate = total_y[train_index], total_y[validate_index]
+
+            train_inputs = (torch.from_numpy(x_train)).float()
+            train_targets = (torch.from_numpy(y_train)).float()
+
+            val_inputs = (torch.from_numpy(x_validate)).float()
+            val_targets = (torch.from_numpy(y_validate)).float()
+
+            train_dataset = TensorDataset(train_inputs, train_targets)
+            valid_dataset = TensorDataset(val_inputs, val_targets)
+
+            train_loader = DataLoader(train_dataset, batch_size=5, shuffle=True, drop_last=True)
+            valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False)
+
+            # train
+            for epoch in range(n_epochs):
+                print(f"Epoch : {epoch}", end="\r")
+                self.classifier.train()
+
+                pbar = tqdm(train_loader, position=0, leave=True)
+                for i,(input, target) in enumerate(pbar):
+                    optimizer.zero_grad()
+                    input = Variable(input)
+                    target = Variable(target)
+
+                    predict = self.classifier(input)
+                    loss = criterion(predict, target)
+
+                    loss.backward()
+                    optimizer.step()
+
+                    running_loss += loss.data.numpy()
+                    train_loss = running_loss/float(i+1)
+
+                    tqdm.write('{:.4f}'.format(train_loss), end='')
+                    tqdm._instances.clear()
+
+            print('train loss: ', running_loss)
+            # evaluate
+            self.classifier.train(False)
+            for input, target in valid_loader:
+                input = Variable(input)
+                target = Variable(target)
+
+                predict = self.classifier(input)
+                loss = criterion(predict, target)
+
+                running_loss += loss.data.numpy()
+
+            total_valid_loss += running_loss
+
+        print('train loss: ', running_loss)
+        return total_valid_loss / self.cv_n_split
