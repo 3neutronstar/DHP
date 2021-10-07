@@ -91,7 +91,7 @@ class FsProblem:
 
                 loss = self.train_model(solution,total_x, total_y)
 
-                reward = 1.0 / (loss+1e-8)
+                reward = 1.0 / loss
 
         else:
             total_x, total_y, split_info = self._prepare_data(solution, cross_validation_flag=False, clinic_include=train)
@@ -151,13 +151,11 @@ class FsProblem:
 
         n_epochs = 15
         kfold = KFold(n_splits=self.cv_n_split, random_state=0, shuffle=True)
-        i = 0
-
+        valid_loss=[]
         for cv_ind,(train_index, validate_index) in enumerate(kfold.split(total_x)):
             self.classifier = Model(sum(solution) + 10)
             optimizer = torch.optim.Adam(self.classifier.parameters(), lr=0.001)
             print(str(cv_ind+1), " CV index")
-            i = i + 1
 
             x_train, x_validate = total_x[train_index], total_x[validate_index]
             y_train, y_validate = total_y[train_index], total_y[validate_index]
@@ -173,13 +171,13 @@ class FsProblem:
 
             train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True, drop_last=True)
             valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False)
-
+            best_loss=10000.0
             # train
             for epoch in range(n_epochs):
-                losses = AverageMeter('Loss', ':.4e')
+                train_losses = AverageMeter('Loss', ':.4e')
                 progress = ProgressMeter(
                     len(train_loader),
-                    [losses],
+                    [train_losses],
                     prefix="Epoch: [{}]".format(epoch))
                 self.classifier.train()
 
@@ -193,13 +191,13 @@ class FsProblem:
 
                     loss.backward()
                     optimizer.step()
-                    losses.update(loss.item(), input.size(0))
+                    train_losses.update(loss.item(), input.size(0))
                     # if i % 2 == 0:
                     #     progress.display(i)
                 # print("[{} epoch] Train Loss {:.4f}".format(i,losses.avg))
 
                 # evaluate
-                losses = AverageMeter('Loss', ':.4e')
+                eval_losses = AverageMeter('Loss', ':.4e')
 
                 self.classifier.eval()
                 for input, target in valid_loader:
@@ -209,9 +207,10 @@ class FsProblem:
 
                         predict = self.classifier(input)
                         loss = criterion(predict, target)
-                    losses.update(loss.item(), input.size(0))
+                    eval_losses.update(loss.item(), input.size(0))
                 if epoch%5==0:
-                    print("cv {} [{} epoch] Eval Loss {:.4f}".format(cv_ind,epoch,losses.avg))
-
-
-        return total_valid_loss / self.cv_n_split
+                    print("cv {} [{} epoch] Eval Loss {:.4f}".format(cv_ind,epoch,eval_losses.avg))
+                if best_loss>eval_losses.avg:
+                    best_loss=eval_losses.avg
+            valid_loss.append(best_loss.view(-1))
+        return torch.cat(valid_loss,dim=0).mean()
