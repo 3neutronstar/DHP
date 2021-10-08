@@ -26,6 +26,7 @@ class FSData():
         self.config=config
 
         self.all_df = pd.concat((gene, clinic_var, survival_time, treatment, event), axis=1)
+
         df=pd.concat((gene,event,treatment, clinic_var,survival_time),axis=1)
         df=df.loc[df['event']==1]
         df=df.loc[df['Treatment'] == config['treatment']]
@@ -33,7 +34,6 @@ class FSData():
 
         self.clinical_variable = df.loc[:, 'Var1':'Var10']
         df.drop(columns=['Var'+str(col) for col in range(1, 11)], inplace=True)
-
         self.df=df
         self.classifier_name = config['classifier']
 
@@ -55,8 +55,8 @@ class FSData():
         # sys.stdout = log_file
         
         print("[START] Dataset " + self.dataset_name + " description \n")
-        print("Shape : " + str(self.df.shape) + "\n")
-        print(self.df.describe())
+        print("Shape : " + str(self.all_df.shape) + "\n")
+        print(self.all_df.describe())
         print("\n[END] Dataset " + self.dataset_name + " description\n")
         print("[START] Ressources specifications\n")
         print("[END] Ressources specifications\n")

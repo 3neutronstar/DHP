@@ -27,7 +27,6 @@ class FsProblem:
         self.outPuts = self.data.loc[:,
                        'time']  # We initilize the labels from the last column of the dataset # 마지막 column이 정답
         self.ql = qlearn
-        print(data)
         # self.classifier = classifier # classifier 대신에 xgboost같은거 넣으면 됨
         self.classifier_name = classifier
 
