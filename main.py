@@ -18,8 +18,8 @@ if __name__=="__main__":
     flip = 3
     max_chance = 5
     bees_number = 10
-    maxIterations = 20
-    locIterations = 20
+    maxIterations = 10
+    locIterations = 10
 
     #gene feature selection
     num_k_gene = 60
