@@ -7,8 +7,7 @@ if __name__=="__main__":
     np.random.seed(seed)
     random.seed(seed)
 
-    # RL 
-
+    # RL
     alhpa = 0.1
     gamma = 0.99
     epsilon = 0.01
@@ -33,6 +32,7 @@ if __name__=="__main__":
     val = str(locals()[param])
 
     config = {
+
         'treatment': 0, # 0이면 치료받지 않은 환자 데이터 가져오기, 1이면 치료받은 환자 데이터 가져오기
         'classifier': "cox", # linear이면 reward함수 linear regression, deep이면 MLP.
         'seed':seed,
@@ -40,3 +40,4 @@ if __name__=="__main__":
     }
     instance = FSData(typeOfAlgo,location,nbr_exec,method,test_param,param,val,alhpa,gamma,epsilon, config)
     instance.run(flip,max_chance,bees_number,maxIterations,locIterations)
+

@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 from sklearn.neighbors import KNeighborsClassifier
 from solution import Solution

@@ -8,10 +8,8 @@ from solution import Solution
 import xlsxwriter
 
 class FSData():
-
     def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val,
                  alpha=None,gamma=None,epsilon=None, config=None):
-
         self.config=config
         self.typeOfAlgo = typeOfAlgo
         self.location = location + ".csv"
@@ -77,13 +75,14 @@ class FSData():
           print ("Execution {0}".format(str(itr)))
           self.fsd = FsProblem(self.typeOfAlgo,self.df,self.ql,
                                classifier=self.classifier_name, reward_df=self.all_df,reward_clinic=self.clinic_var,config=self.config)
+
           swarm = Swarm(self.fsd,flip,max_chance,bees_number,maxIterations,locIterations)
 
           t1 = time.time()
           best, best_solution = swarm.bso(self.typeOfAlgo,flip)
           t2 = time.time()
-
           self.fsd.evaluate(best_solution, train=False, feature_name=self.dl.gene_p_value_arg_min)
+
           total_time += t2-t1
           print("Time elapsed for execution {0} : {1:.2f} s\n".format(itr,t2-t1))
           self.worksheet.write(itr, 0, itr)
