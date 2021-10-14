@@ -27,7 +27,8 @@ Reward: ![image](https://user-images.githubusercontent.com/59332148/137331317-d4
 ## Analysis of Examples
 
 - The effect of G88 gene mutation
-G88 is higher effect in cox_treat, less effect in cox_notreat. --> If G88 is mutant gene, cancer treatment has positive effect.
+
+G88 is higher effect in cox_treat, less effect in cox_notreat. --> If G88 is mutant gene, cancer treatment has positive effect. </br>
 ![image](https://user-images.githubusercontent.com/59332148/137347652-1035aaa5-8914-48ad-b83a-d0703ef86a63.png)
 
 ## Reference
