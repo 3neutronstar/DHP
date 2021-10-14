@@ -14,14 +14,13 @@ if __name__=="__main__":
 
     # BSO
 
-    flip = 5
-    max_chance = 3
+    flip = 1
+    max_chance = 5
     bees_number = 10
     maxIterations = 10
     locIterations = 10
 
     # Test type
-
     typeOfAlgo = 1
     nbr_exec = 1
     dataset = "new"
@@ -33,17 +32,12 @@ if __name__=="__main__":
     val = str(locals()[param])
 
     config = {
-        "classifier": "lightgbm",  # reward 계산용 모델
-        "treatment": 0,  # 0 = 치료 안받은 데이터, 1 = 치료 받은 데이터
-        "gene_num_train": 4,  # 전처리를 통해 추출할 유전자 수
+
+        'treatment': 0, # 0이면 치료받지 않은 환자 데이터 가져오기, 1이면 치료받은 환자 데이터 가져오기
+        'classifier': "cox", # linear이면 reward함수 linear regression, deep이면 MLP.
+        'seed':seed,
+        'filter_method_gene':60, # filter method로써 cox 몇개 제외할 것인지
     }
+    instance = FSData(typeOfAlgo,location,nbr_exec,method,test_param,param,val,alhpa,gamma,epsilon, config)
+    instance.run(flip,max_chance,bees_number,maxIterations,locIterations)
 
-    for model in ['linear_regression']:
-        for treat in [1]:
-            for gene_n in [50]:
-                config["classifier"] = model
-                config['treatment'] = treat
-                config['gene_num_train'] = gene_n
-
-                instance = FSData(typeOfAlgo,location,nbr_exec,method,test_param,param,val,alhpa,gamma,epsilon, config)
-                instance.run(flip,max_chance,bees_number,maxIterations,locIterations)
