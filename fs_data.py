@@ -10,26 +10,25 @@ import xlsxwriter
 class FSData():
 
     def __init__(self,typeOfAlgo,location,nbr_exec, method, test_param, param, val,
-                 alpha=None,gamma=None,epsilon=None,num_k_gene=30, config=None):
+                 alpha=None,gamma=None,epsilon=None, config=None):
 
+        self.config=config
         self.typeOfAlgo = typeOfAlgo
         self.location = location + ".csv"
         self.clinical_variable_location = location + "_clinical_variable.csv"
         self.nb_exec = nbr_exec
         self.dataset_name = re.search('[A-Za-z\-]*.csv',self.location)[0].split('.')[0]
         self.dl=Dataloader()
-        gene=self.dl.get_k_gene(num_k_gene)
+        gene=self.dl.get_k_gene(self.config['filter_method_gene'])
         survival_time=self.dl.get_survival_time()
         event=self.dl.get_event()
         treatment=self.dl.get_treatment()
         clinic_var=self.dl.get_clinic_var()
-        self.config=config
+        self.clinic_var=clinic_var
 
         self.all_df = pd.concat((gene, clinic_var, survival_time, treatment, event), axis=1)
 
         df=pd.concat((gene,event,treatment, clinic_var,survival_time),axis=1)
-        df=df.loc[df['event']==1]
-        df=df.loc[df['Treatment'] == config['treatment']]
         df.drop(columns=['Treatment', 'event'], inplace=True)
 
         self.clinical_variable = df.loc[:, 'Var1':'Var10']
@@ -38,8 +37,8 @@ class FSData():
         self.classifier_name = config['classifier']
 
         self.ql = QLearning(len(self.df.columns),Solution.attributs_to_flip(len(self.df.columns)-1),alpha,gamma,epsilon)
-        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,
-                             classifier=self.classifier_name, reward_df=self.all_df,config=config)
+        self.fsd = FsProblem(self.typeOfAlgo,self.df,self.ql,
+                             classifier=self.classifier_name, reward_df=self.all_df,reward_clinic=clinic_var,config=config)
         self.classifier_name = config['classifier']
 
         path = os.path.join('results', 'parameters', method, test_param, param, val, self.classifier_name, self.dataset_name)
@@ -56,7 +55,6 @@ class FSData():
         
         print("[START] Dataset " + self.dataset_name + " description \n")
         print("Shape : " + str(self.all_df.shape) + "\n")
-        print(self.all_df.describe())
         print("\n[END] Dataset " + self.dataset_name + " description\n")
         print("[START] Ressources specifications\n")
         print("[END] Ressources specifications\n")
@@ -77,8 +75,8 @@ class FSData():
         
         for itr in range(1,self.nb_exec+1):
           print ("Execution {0}".format(str(itr)))
-          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.clinical_variable,self.ql,
-                               classifier=self.classifier_name, reward_df=self.all_df,config=self.config)
+          self.fsd = FsProblem(self.typeOfAlgo,self.df,self.ql,
+                               classifier=self.classifier_name, reward_df=self.all_df,reward_clinic=self.clinic_var,config=self.config)
           swarm = Swarm(self.fsd,flip,max_chance,bees_number,maxIterations,locIterations)
 
           t1 = time.time()
@@ -97,3 +95,7 @@ class FSData():
           
         print ("Total execution time of {0} executions \nfor dataset \"{1}\" is {2:.2f} s".format(self.nb_exec,self.dataset_name,total_time))
         self.workbook.close()
+    
+    def eval(self,flip,max_chance,bees_number,maxIterations,locIterations):
+      self.fsd = FsProblem(self.typeOfAlgo,self.df,self.ql,
+                            classifier=self.classifier_name, reward_df=self.all_df,reward_clinic=self.clinic_var,config=self.config)

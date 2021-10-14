@@ -49,6 +49,7 @@ class Dataloader(object):
             data[type] = pd.read_csv(csv_path, index_col=0)
 
         self.gene_p_value_arg_min = self._filter_method(data)
+        # self.gene_p_value_arg_min=[f'G{i}' for i in range(1,301)]
         # self.gene_p_value_arg_min = ['G75', 'G173', 'G192', 'G27', 'G202', 'G63', 'G179', 'G260', 'G65', 'G1', 'G177', 'G96',
         #                         'G93', 'G175', 'G186', 'G122', 'G145', 'G53', 'G281', 'G14', 'G154', 'G25', 'G139',
         #                         'G9', 'G272', 'G112', 'G89', 'G167', 'G200', 'G20', 'G224', 'G55', 'G257', 'G269',
