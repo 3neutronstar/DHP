@@ -1,5 +1,5 @@
 # DHP(Digital Health Hackathon 2021, Korea - AI Track)
-- Awarded Dean's Award(1st prize) by CCEI(서울창조경제혁신센터), Naver Care
+- Awarded Excellence Award(1st prize) by CCEI(서울창조경제혁신센터), Naver Care
 ## Problem
 - Reinforcement learning based gene selection that is effective for cancer treatment
 - Feature selection problem
